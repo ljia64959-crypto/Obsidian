@@ -3859,35 +3859,45 @@ do
             Slider:Display()
         end
 
+        local Dragging = false
+        local function UpdateValueFromInput(Input)
+            local Scale = math.clamp((Input.Position.X - Bar.AbsolutePosition.X) / Bar.AbsoluteSize.X, 0, 1)
+
+            local OldValue = Slider.Value
+            Slider.Value = Round(Slider.Min + ((Slider.Max - Slider.Min) * Scale), Slider.Rounding)
+
+            Slider:Display()
+            if Slider.Value ~= OldValue then
+                Library:SafeCallback(Slider.Callback, Slider.Value)
+                Library:SafeCallback(Slider.Changed, Slider.Value)
+            end
+        end
+
         Bar.InputBegan:Connect(function(Input: InputObject)
             if not IsClickInput(Input) or Slider.Disabled then
                 return
             end
-
+            Dragging = true
             for _, Side in pairs(Library.ActiveTab.Sides) do
                 Side.ScrollingEnabled = false
             end
-
-            while IsDragInput(Input) do
-                local Location = Mouse.X
-                local Scale = math.clamp((Location - Bar.AbsolutePosition.X) / Bar.AbsoluteSize.X, 0, 1)
-
-                local OldValue = Slider.Value
-                Slider.Value = Round(Slider.Min + ((Slider.Max - Slider.Min) * Scale), Slider.Rounding)
-
-                Slider:Display()
-                if Slider.Value ~= OldValue then
-                    Library:SafeCallback(Slider.Callback, Slider.Value)
-                    Library:SafeCallback(Slider.Changed, Slider.Value)
-                end
-
-                RunService.RenderStepped:Wait()
-            end
-
-            for _, Side in pairs(Library.ActiveTab.Sides) do
-                Side.ScrollingEnabled = true
-            end
+            UpdateValueFromInput(Input)
         end)
+
+        Library:GiveSignal(UserInputService.InputChanged:Connect(function(Input: InputObject)
+            if Dragging and (Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch) then
+                UpdateValueFromInput(Input)
+            end
+        end))
+
+        Library:GiveSignal(UserInputService.InputEnded:Connect(function(Input: InputObject)
+            if Dragging and (Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch) then
+                Dragging = false
+                for _, Side in pairs(Library.ActiveTab.Sides) do
+                    Side.ScrollingEnabled = true
+                end
+            end
+        end))
 
         if typeof(Slider.Tooltip) == "string" or typeof(Slider.DisabledTooltip) == "string" then
             Slider.TooltipTable = Library:AddTooltip(Slider.Tooltip, Slider.DisabledTooltip, Bar)
